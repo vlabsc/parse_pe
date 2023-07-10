@@ -15,7 +15,7 @@ pe32+ parsing
 
 file input through arguments
 
-more rror checking
+more error checking
 
 import table and other API printing
 
