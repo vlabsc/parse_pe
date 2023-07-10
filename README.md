@@ -10,9 +10,15 @@ FASM (flat assember download) -> https://flatassembler.net/download.php
 its a simple and fast pe32 header parser. prints the important values of pe32 header.
 
 Yet to do:
-pe32+
+
+pe32+ parsing
+
 file input through arguments
+
 more rror checking
+
+import table and other API printing
+
 
 
 ![image](https://github.com/vlabsc/parse_pe/assets/5446466/854dd05a-680d-47f3-8689-533857430e7b)
