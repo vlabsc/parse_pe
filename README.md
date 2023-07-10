@@ -1,5 +1,11 @@
 # parse_pe
-parse_pe - parses pe header and prints it - simple - written in FASM
+parse_pe - parses pe header and prints it - simple - written in FASM (https://flatassembler.net/)
+
+assembly process:
+eiether execute run.bat or this command
+" fasm main6.asm parse_pe.exe "
+
+FASM (flat assember download) -> https://flatassembler.net/download.php
 
 its a simple and fast pe32 header parser. prints the important values of pe32 header.
 
