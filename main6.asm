@@ -6,10 +6,10 @@
 format PE64 console
 entry main
 
-include 'C:\fasm\INCLUDE\WIN64AX.INC'
+include 'WIN64AX.INC'
 
-include 'V:\OneHalf\Programming\asm\FASM\libs\libs.inc'
-include 'V:\OneHalf\Programming\asm\FASM\libs\macros.inc'
+include 'libs.inc'
+include 'macros.inc'
 
 
 section '.data' data readable writeable
