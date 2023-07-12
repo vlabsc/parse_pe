@@ -1,4 +1,4 @@
-include 'V:\OneHalf\Programming\asm\FASM\libs\macros.inc'
+include 'macros.inc'
 
 section '.data' data readable writeable
 
