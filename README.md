@@ -31,3 +31,10 @@ prints the first 24 bytes of each section in hex
 
 
 
+![image](https://github.com/vlabsc/parse_pe/assets/5446466/22a038a9-3684-4d98-8153-2e0e4bea204f)
+parses the pe64 header
+
+![image](https://github.com/vlabsc/parse_pe/assets/5446466/ebfd11d6-b7e4-4928-bacc-9eb904740ff8)
+prints the hex of pe64 sections
+
+
