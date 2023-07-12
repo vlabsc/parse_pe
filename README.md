@@ -23,6 +23,7 @@ import table and other API printing
 first parses the input pe32 file
 
 ![image](https://github.com/vlabsc/parse_pe/assets/5446466/246235a6-a3a6-47cc-b7f5-2e69e07f8980)
+
 prints the dos header, nt header signature, coff file header and optional header
 
 ![image](https://github.com/vlabsc/parse_pe/assets/5446466/0fec4cbb-9bcc-47a3-8f16-ad48d1b47f26)
