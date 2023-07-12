@@ -11,10 +11,6 @@ its a simple and fast pe32 header parser. prints the important values of pe32 he
 
 Yet to do:
 
-pe32+ parsing
-
-file input through arguments
-
 more error checking
 
 import table and other API printing
