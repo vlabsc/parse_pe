@@ -1,6 +1,5 @@
 ; ifh.asm - input file handling
-; version 7 - optimization
-; version 7 - pe64 implementation
+; version 8 - populate more fields
 ; this code opens the input pe file and prepares
 
 

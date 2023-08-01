@@ -1,6 +1,5 @@
 ; parse_pe.asm - parse_pe from memory
-; version 7 - optimization
-; version 7 - pe64 implementation
+; version 8 - populate more fields
 ; the pe parser .. after the file content is loaded into memory, pe format is parsed
 
 section '.data' data readable writeable
@@ -8,15 +7,16 @@ section '.data' data readable writeable
 temps dd 0x00
 loop_index dd 0x00
 
-
 offset.dos_header.mz_signature equ 0x0     ; first offset
 offset.dos_header.nt_header_location equ 0x3c     ; within dos heaader at 3c, address of PE
-value.dos_header.mz_signature dw 0x0000
-
 offset.nt_header.pe_signature dd 0x0000
 offset.nt_header.file_header dd 0x0000
-value.nt_header.pe_signature dd 0x0000
+offset.nt_header.optional_header dd 0x0000
+offset.section_header.start dd 0x0
+offset.section_header.end dd 0x0
 
+value.dos_header.mz_signature dw 0x0000
+value.nt_header.pe_signature dd 0x0000
 
 value.nt_header.file_header.machine dw 0x0000
 value.nt_header.file_header.number_of_sections dw 0x0000
@@ -26,7 +26,6 @@ value.nt_header.file_header.number_of_symbols dd 0x0000
 value.nt_header.file_header.size_of_optional_header dw 0x0000
 value.nt_header.file_header.characteristics dw 0x0000
 
-offset.nt_header.optional_header dd 0x0000
 
 value.nt_header.optional_header.magic dw 0x0000
 value.nt_header.optional_header.major db 0x0
@@ -47,7 +46,70 @@ value.nt_header.optional_header.size_of_stack_commit dd 0x00000000
 value.nt_header.optional_header.size_of_heap_reserve dd 0x00000000
 value.nt_header.optional_header.size_of_heap_commit dd 0x00000000
 value.nt_header.optional_header.loader_flags dd 0x00000000
-value.nt_header.optional_header.number_of_rva_and_sizes dd 0x00000000
+value.nt_header.optional_header.number_of_rva_and_sizes dd 0x00000000   ; number of directories
+
+value.nt_header.optional_header.dd.export.rva dd 0x00000000
+value.nt_header.optional_header.dd.export.size dd 0x00000000
+
+value.nt_header.optional_header.dd.import.rva dd 0x00000000
+value.nt_header.optional_header.dd.import.size dd 0x00000000
+
+value.nt_header.optional_header.dd.resource.rva dd 0x00000000
+value.nt_header.optional_header.dd.resource.size dd 0x00000000
+
+value.nt_header.optional_header.dd.exception.rva dd 0x00000000
+value.nt_header.optional_header.dd.exception.size dd 0x00000000
+
+value.nt_header.optional_header.dd.certificate.rva dd 0x00000000
+value.nt_header.optional_header.dd.certificate.size dd 0x00000000
+
+value.nt_header.optional_header.dd.baserelocation.rva dd 0x00000000
+value.nt_header.optional_header.dd.baserelocation.size dd 0x00000000
+
+value.nt_header.optional_header.dd.debug.rva dd 0x00000000
+value.nt_header.optional_header.dd.debug.size dd 0x00000000
+
+value.nt_header.optional_header.dd.architecture.rva dd 0x00000000
+value.nt_header.optional_header.dd.architecture.size dd 0x00000000
+
+value.nt_header.optional_header.dd.globalptr.rva dd 0x00000000
+value.nt_header.optional_header.dd.globalptr.size dd 0x00000000
+
+value.nt_header.optional_header.dd.tls.rva dd 0x00000000
+value.nt_header.optional_header.dd.tls.size dd 0x00000000
+
+value.nt_header.optional_header.dd.loadconfig.rva dd 0x00000000
+value.nt_header.optional_header.dd.loadconfig.size dd 0x00000000
+
+value.nt_header.optional_header.dd.boundimport.rva dd 0x00000000
+value.nt_header.optional_header.dd.boundimport.size dd 0x00000000
+
+value.nt_header.optional_header.dd.iat.rva dd 0x00000000
+value.nt_header.optional_header.dd.iat.size dd 0x00000000
+
+value.nt_header.optional_header.dd.delayimport.rva dd 0x00000000
+value.nt_header.optional_header.dd.delayimport.size dd 0x00000000
+
+value.nt_header.optional_header.dd.clrruntime.rva dd 0x00000000
+value.nt_header.optional_header.dd.clrruntime.size dd 0x00000000
+
+value.nt_header.optional_header.dd.reserved.rva dd 0x00000000
+value.nt_header.optional_header.dd.reserved.size dd 0x00000000
+
+
+value.import.section.rva dd 0x00000000
+value.import.section.rva.size dd 0x00000000
+value.import.section.raw dd 0x00000000
+value.import.section.raw.size dd 0x00000000
+
+value.import.directory.table.raw dd 0x00000000
+value.import.directory.table.import.name.table.rva dd 0x00000000
+value.import.directory.table.timestamp.rva dd 0x00000000
+value.import.directory.table.forwarder.chain.rva dd 0x00000000
+value.import.directory.table.name.rva dd 0x00000000
+value.import.directory.table.import.address.table.rva dd 0x00000000
+
+
 
 value.section_header.name rb 0x8
 value.section_header.virtual_size dd 0x0
@@ -180,7 +242,6 @@ proc parse_pe input_file_buffer_address
 
     mov [offset.nt_header.file_header], edi
 
-
     mov bx, word [esi + edi]
     mov [value.nt_header.file_header.machine], word bx
     cmp bx, word 0x014c         ; 32bit
@@ -266,7 +327,7 @@ proc parse_pe input_file_buffer_address
     je parse_pe_return_as_64bit_found
     mov [is_32bit], 0x1    
     
-    ;je aaa
+    ;je 
 
     add edi, 0x4        ; magic + major + minor
     xor edx, edx
@@ -357,27 +418,22 @@ proc parse_pe input_file_buffer_address
     invoke printf, "probing optional_header completed ... "
     call print_newline
 ; -----------------------------------------------------------------
-; probing data directories - start
-    invoke printf, "probing data directories ... "
+; probing data directories 
 
-    xor ecx, ecx
-    xor edi, edi
-    xor esi, esi
-
+    xor rsi, rsi
     mov esi, dword [input_file_buffer_address]
-    mov edi, [offset.nt_header.optional_header]
-    add edi, 0x60       ; start of data directories
-    mov [loop_index], 0x0
+    add edi, 0x4        ; ... + address_of_entry_point + base_of_code
+    add esi, edi
+    lea edi, [value.nt_header.optional_header.dd.export.rva]
+    mov ecx, 0x80   ; 128 bytes - 16 data directories
+    rep movsb
 
-    call print_newline
     invoke printf, "probing pe32 header completed ... "
     call print_newline
     invoke printf, "+---------------------------------------------------------------------------------------+"
     call print_newline
 
-
 ; -----------------------------------------------------------------
-    ;jmp parse_pe_return_without_error
 parse_pe_return_without_error:
     flushall
     call print_parsed_pe
@@ -398,7 +454,7 @@ parse_pe_return_with_error:
     flushall
 
 parse_pe_proc_return:
-    popall
+    popall   
     ret
 endp
 
@@ -441,22 +497,8 @@ endp
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 proc print_parsed_pe
     pushall
-    invoke printf, "+---------------------------------------------------------------------------------------+"
-    call print_newline
     invoke printf, "printing the parsed pe32 ... "
     call print_newline
 
@@ -626,43 +668,75 @@ proc print_parsed_pe
 ; -----------------------------------------------------------------
 
 ; -----------------------------------------------------------------
-; probing and printingdata directories - start
+; probing and printing data directories - start
     invoke printf, "printing data directories... "
     call print_newline
 
-    xor ecx, ecx
-    xor edi, edi
-    xor esi, esi
-
-    mov esi, dword [input_file_buffer_address]
-    mov edi, [offset.nt_header.optional_header]
-    add edi, 0x60       ; start of data directories
-    mov [loop_index], 0x0
-probe_data_directories_loop_start:
-    mov ecx, [loop_index]
-    cmp ecx, [value.nt_header.optional_header.number_of_rva_and_sizes]
-    jge probe_data_directories_loop_out
-
-    xor edx, edx
-    mov edx, dword [esi + edi]
-    invoke printf, "    -> 0x%08x (rva) - ", edx
-
-    add edi, 4
-    xor edx, edx
-    mov edx, dword [esi + edi]
-    invoke printf, "0x%08x (size). ", edx
-
-    xor rdx, rdx
-    mov dl, byte [loop_index]
-    imul edx, dword 24
-    add rdx, data_directory_names
-    invoke printf, "- %s ", edx
-
-    add edi, 4
-    inc [loop_index]
+    invoke printf, " export table                   - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.export.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.export.size]
     call print_newline
-    jmp probe_data_directories_loop_start
-probe_data_directories_loop_out:
+    invoke printf, " import table                   - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.import.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.import.size]
+    call print_newline
+    invoke printf, " resource tabel                 - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.resource.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.resource.size]
+    call print_newline
+    invoke printf, " exception table                - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.exception.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.exception.size]
+    call print_newline
+    invoke printf, " certificate table              - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.certificate.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.certificate.size]
+    call print_newline
+    invoke printf, " base relocation table          - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.baserelocation.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.baserelocation.size]
+    call print_newline
+    invoke printf, " debug table                    - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.debug.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.debug.size]
+    call print_newline
+    invoke printf, " architecture table             - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.architecture.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.architecture.size]
+    call print_newline
+    invoke printf, " global ptr table               - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.globalptr.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.globalptr.size]
+    call print_newline
+    invoke printf, " tls table                      - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.tls.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.tls.size]
+    call print_newline
+    invoke printf, " load config table              - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.loadconfig.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.loadconfig.size]
+    call print_newline
+    invoke printf, " bound import table             - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.boundimport.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.boundimport.size]
+    call print_newline
+    invoke printf, " iat table                      - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.iat.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.iat.size]
+    call print_newline
+    invoke printf, " delay import descriptor table  - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.delayimport.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.delayimport.size]
+    call print_newline
+    invoke printf, " clr runtime header table       - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.clrruntime.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.clrruntime.size]
+    call print_newline
+    invoke printf, " reserved table                 - "
+    invoke printf, "0x%08x (rva) - ", [value.nt_header.optional_header.dd.reserved.rva]
+    invoke printf, "0x%08x (size). ", [value.nt_header.optional_header.dd.reserved.size]
+    call print_newline
+
     invoke printf, "+---------------------------------------------------------------------------------------+"
     call print_newline
 
@@ -677,7 +751,12 @@ probe_data_directories_loop_out:
     mov esi, dword [input_file_buffer_address]
     mov edi, [offset.nt_header.optional_header]
     add di, word [value.nt_header.file_header.size_of_optional_header]
+    mov [offset.section_header.start], edi
 
+    invoke printf, "section header starts at 0x%hhx ... ", \ 
+                    [offset.section_header.start]
+    call print_newline
+    
     mov [loop_index], 0x0
 probe_section_headers_loop_start:
     mov ecx, [loop_index]
@@ -753,6 +832,89 @@ probe_section_headers_loop_start:
     mov edx, dword [esi + edi]
     mov dword [value.section_header.virtual_characteristics], edx
     invoke printf, "    -> characteristics: 0x%x", [value.section_header.virtual_characteristics]
+
+; section header characteristics print - start
+    xor r15, r15
+    mov r15d, dword [value.section_header.virtual_characteristics]
+
+    invoke printf, " => [ "
+characteristics_check_0:
+    bt r15d, 29
+    jnc characteristics_check_1
+    invoke printf, " .executable. "
+
+characteristics_check_1:
+    bt r15d, 30
+    jnc characteristics_check_2
+    invoke printf, " .read. "
+
+characteristics_check_2:
+    bt r15d, 5
+    jnc characteristics_check_3
+    invoke printf, " .code. "
+
+characteristics_check_3:
+    bt r15d, 31
+    jnc characteristics_check_4
+    invoke printf, " .write. "
+
+characteristics_check_4:
+    bt r15d, 6
+    jnc characteristics_comeout
+    invoke printf, " .initialized data. "
+
+characteristics_comeout:
+
+; section header characteristics print - end
+
+; now find out iat region
+; iat is stored in 
+;value.nt_header.optional_header.dd.import.rva dd 0x00000000
+;value.nt_header.optional_header.dd.import.size dd 0x00000000
+
+    xor r15, r15
+    mov r15d, edi
+    sub r15d, 24
+    
+    xor rdx, rdx
+    xor r8, r8
+
+    mov ecx, dword [esi + r15d]  ; min
+    mov edx, ecx    ; min
+    sub r15d, 4      ; virtual size
+    add edx, dword [esi + r15d]      ; rva size - max   
+    mov r8d, dword [value.nt_header.optional_header.dd.import.rva]    ; import addr
+
+    ; is_addr_within_range(min, max, addr)
+    fastcall find_is_addr_within_range
+    test eax, eax
+    jz section_rva_iat_probe_comeout
+    invoke printf, " .import section. "
+    
+    mov ecx, dword [value.nt_header.optional_header.dd.import.rva]    ; import addr
+    add r15d, 4      ; virtual size
+    mov edx, dword [esi + r15d]  ; min
+    mov r8d, dword [value.section_header.virtual_pointer_to_raw_data]
+    ;get_pointer_to_raw_address rva, base_rva, base_raw
+    fastcall get_pointer_to_raw_address
+    mov [value.import.directory.table.raw], eax
+
+    mov eax, dword [value.section_header.virtual_pointer_to_raw_data]
+    mov [value.import.section.raw], eax
+    
+    mov eax, dword [value.section_header.virtual_size_of_raw_data]
+    mov [value.import.section.raw.size], eax
+
+    mov eax, dword [value.section_header.virtual_rva]
+    mov [value.import.section.rva], eax
+
+    mov dword [value.section_header.virtual_size], edx
+    mov [value.import.section.raw.size], eax
+
+
+
+section_rva_iat_probe_comeout:
+    invoke printf, " ] "
     call print_newline
 
     add edi, 4
@@ -762,8 +924,14 @@ probe_section_headers_loop_start:
     jmp probe_section_headers_loop_start
 probe_section_headers_loop_out:
 
+    mov [offset.section_header.end], edi
+    invoke printf, "section header ends at 0x%hhx ... ", \ 
+                    [offset.section_header.end]
+    call print_newline
+
     invoke printf, "+---------------------------------------------------------------------------------------+"
     call print_newline
+
 ; probing and printing section headers - end
 ; -----------------------------------------------------------------
 ; probing and printing specific sections in hex - start
@@ -830,11 +998,131 @@ probe_sections_hex_loop_out:
 
 ; probing and printing specific sections in hex - end
 ; -----------------------------------------------------------------
+; probing and printing import table - start
+
+;value.import.directory.table.rva dd 0x00000000
+
+;value.import.directory.table.import.name.table.rva dd 0x00000000
+;value.import.directory.table.timestamp.rva dd 0x00000000
+;value.import.directory.table.forwarder.chain.rva dd 0x00000000
+;value.import.directory.table.name.rva dd 0x00000000
+;value.import.directory.table.import.address.table.rva dd 0x00000000
+
+    invoke printf, "probing and printing import directory table %s", print_newlinestr
+
+    mov esi, dword [input_file_buffer_address]
+    add esi, [value.import.directory.table.raw]
+    xor eax, eax    ; count number of 0, to mark last table entry
+    invoke printf, "import directory table address: 0x%08x %s%s", \
+                        [value.import.directory.table.raw], print_newlinestr, print_newlinestr
+
+    import_directory_table_probe_print_loop_start:
+        xor eax, eax        
+        or eax, [esi]
+        or eax, [esi+4]
+        or eax, [esi+8]
+        or eax, [esi+12]
+        or eax, [esi+16]
+        test eax, eax
+        jz import_directory_table_probe_print_loop_comeout
+
+        xor eax, eax
+        mov eax, [esi]
+        invoke printf, "import name table rva: %08x %s", eax, print_newlinestr
+
+        xor eax, eax
+        mov eax, [esi+4]
+        invoke printf, "time date stamp: %08d %s", eax, print_newlinestr
+
+        xor eax, eax
+        mov eax, [esi+8]
+        invoke printf, "forwarder chain: %08x %s", eax, print_newlinestr
+
+        xor eax, eax
+        mov eax, [esi+12]
+        invoke printf, "name rva: %08x ", eax
+
+        mov ecx, [esi+12]       ; name rva
+        mov edx, [value.import.section.rva] ; base rva
+        mov r8d, [value.import.section.raw] ; base_raw
+
+        ;get_pointer_to_raw_address rva, base_rva, base_raw
+        fastcall get_pointer_to_raw_address
+        add eax, [input_file_buffer_address]
+        invoke printf, "(%s)%s", eax, print_newlinestr
+
+        xor eax, eax
+        mov eax, [esi+16]   ; import address table
+        invoke printf, "import address table rva: %08x %s%s", \
+                            eax, print_newlinestr, print_newlinestr
+
+        add esi, 20
+        jmp import_directory_table_probe_print_loop_start
+    import_directory_table_probe_print_loop_comeout:
+    invoke printf, "+---------------------------------------------------------------------------------------+%s", print_newlinestr
+; probing and printing import table - end
+; -----------------------------------------------------------------
+
+; probing and printing import name table - start
+; -----------------------------------------------------------------
+;value.import.directory.table.rva dd 0x00000000
+
+;value.import.directory.table.import.name.table.rva dd 0x00000000
+;value.import.directory.table.timestamp.rva dd 0x00000000
+;value.import.directory.table.forwarder.chain.rva dd 0x00000000
+;value.import.directory.table.name.rva dd 0x00000000
+;value.import.directory.table.import.address.table.rva dd 0x00000000
+
+    invoke printf, "probing and printing import name table %s", print_newlinestr
+
+    mov esi, dword [input_file_buffer_address]
+    add esi, [value.import.directory.table.raw]
+    xor eax, eax    ; count number of 0, to mark last table entry
+    invoke printf, "import directory table address: 0x%08x %s%s", \
+                        [value.import.directory.table.raw], print_newlinestr, print_newlinestr
+
+    import_name_table_probe_print_loop_start:
+        xor eax, eax        
+        or eax, [esi]
+        or eax, [esi+4]
+        or eax, [esi+8]
+        or eax, [esi+12]
+        or eax, [esi+16]
+        test eax, eax
+        jz import_name_table_probe_print_loop_comeout
+
+        ;xor eax, eax
+        ;mov eax, [esi]
+        ;invoke printf, "import name table rva: %08x %s", eax, print_newlinestr
+
+        mov ecx, [esi+12]       ; name rva
+        mov edx, [value.import.section.rva] ; base rva
+        mov r8d, [value.import.section.raw] ; base_raw
+
+        ;get_pointer_to_raw_address rva, base_rva, base_raw
+        fastcall get_pointer_to_raw_address
+        add eax, [input_file_buffer_address]
+        invoke printf, "apis imported from (%s)%s", eax, print_newlinestr
+
+        ; aaa
+        mov ecx, [esi]         ; import name table
+        mov edx, [value.import.section.rva] ; base rva
+        mov r8d, [value.import.section.raw] ; base_raw
+
+        push rsi
+        fastcall print_import_name_table
+        pop rsi
 
 
+        add esi, 20
+        jmp import_name_table_probe_print_loop_start
+    import_name_table_probe_print_loop_comeout:
 
+    invoke printf, "probing and printing import name table completed %s", print_newlinestr
+    invoke printf, "+---------------------------------------------------------------------------------------+%s", print_newlinestr
+; probing and printing import name table - end
+; -----------------------------------------------------------------
 
-    ;jmp print_parsed_pe_return_without_error
 print_parsed_pe_return_without_error:
     flushall
     mov eax, 0x1
@@ -849,12 +1137,91 @@ print_parsed_pe_proc_return:
     ret
 endp
 
+; bbb
+proc print_import_name_table rva, base_rva, base_raw
+    mov dword [rva], ecx
+    mov dword [base_rva], edx
+    mov dword [base_raw], r8d
+
+    sub ecx, edx
+    add r8d, ecx
+    mov esi, r8d
+    add esi, [input_file_buffer_address]    ; first thunk of name table entry
+    
+    print_import_name_table_loop_start:
+        cmp [esi], dword 0x0
+        jz print_import_name_table_loop_comeout
+
+        mov r13d, [esi]
+        bt r13d, 31
+        jc ordinal_bit_set
+        ordinal_bit_not_set:
+        mov edx, dword [base_rva]
+        mov r8d, dword [base_raw]
+
+        sub r13d, edx
+        add r8d, r13d
+        mov eax, r8d
+        add eax, [input_file_buffer_address]    ; first thunk of name table entry
+
+        mov r10w, word [eax]
+        mov r12d, eax
+        xor edx, edx
+        invoke printf, "hint: %04x, ", r10w
+
+        mov edx, r12d
+        add edx, 2
+
+        invoke printf, "name: %s%s", edx, print_newlinestr
+        jmp ordinal_bit_set_comeout
+
+        ordinal_bit_set:
+        xor edx, edx
+        invoke printf, "ordinal hint: %04x%s", r13d, print_newlinestr
+        ordinal_bit_set_comeout:
+
+        add esi, 4
+        jmp print_import_name_table_loop_start
+    print_import_name_table_loop_comeout:    
+    ret
+endp
+
+proc get_pointer_to_raw_address rva, base_rva, base_raw
+    mov dword [rva], ecx
+    mov dword [base_rva], edx
+    mov dword [base_raw], r8d
+
+    sub ecx, edx
+    add r8d, ecx
+    mov eax, r8d
+
+    ret
+endp
+
+
+proc find_is_addr_within_range address, min, max
+
+    mov dword [min], ecx
+    mov dword [max], edx
+    mov dword [address], r8d
+
+    cmp ecx, r8d
+    jg is_addr_within_range_not_within_range
+
+    cmp edx, r8d
+    jl is_addr_within_range_not_within_range
+    mov eax, 1
+    jmp is_addr_within_range_comeout
+
+is_addr_within_range_not_within_range:
+    xor eax, eax
+
+is_addr_within_range_comeout:
+    ret
+endp
 
 
 
-
-
-;aaa
 proc find_is32bit input_file_buffer_address
     pushall
 

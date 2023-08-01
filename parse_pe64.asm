@@ -1,15 +1,20 @@
 ; parse_pe64.asm - parse_pe from memory
-; version 7 - optimization
-; version 7 - pe64 implementation
+; version 8 - populate more fields
 ; the pe parser .. after the file content is loaded into memory, pe format is parsed
+; pe64 - yet to do import table
+
 
 section '.data' data readable writeable
+
 offset.pe64.dos_header.mz_signature equ 0x0     ; first offset
 offset.pe64.dos_header.nt_header_location equ 0x3c     ; within dos heaader at 3c, address of PE
-value.pe64.dos_header.mz_signature dw 0x0000
-
 offset.pe64.nt_header.pe_signature dd 0x0000
 offset.pe64.nt_header.file_header dd 0x0000
+offset.pe64.nt_header.optional_header dd 0x0000
+offset.pe64.section_header.start dd 0x0
+offset.pe64.section_header.end dd 0x0
+
+value.pe64.dos_header.mz_signature dw 0x0000
 value.pe64.nt_header.pe_signature dd 0x0000
 
 
@@ -21,7 +26,6 @@ value.pe64.nt_header.file_header.number_of_symbols dd 0x0000
 value.pe64.nt_header.file_header.size_of_optional_header dw 0x0000
 value.pe64.nt_header.file_header.characteristics dw 0x0000
 
-offset.pe64.nt_header.optional_header dd 0x0000
 
 value.pe64.nt_header.optional_header.magic dw 0x0000
 value.pe64.nt_header.optional_header.major db 0x0
@@ -43,6 +47,54 @@ value.pe64.nt_header.optional_header.size_of_heap_commit dq 0x00000000
 value.pe64.nt_header.optional_header.loader_flags dd 0x00000000
 value.pe64.nt_header.optional_header.number_of_rva_and_sizes dd 0x00000000
 
+value.pe64.nt_header.optional_header.dd.export.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.export.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.import.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.import.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.resource.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.resource.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.exception.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.exception.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.certificate.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.certificate.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.baserelocation.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.baserelocation.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.debug.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.debug.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.architecture.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.architecture.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.globalptr.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.globalptr.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.tls.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.tls.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.loadconfig.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.loadconfig.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.boundimport.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.boundimport.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.iat.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.iat.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.delayimport.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.delayimport.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.clrruntime.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.clrruntime.size dd 0x00000000
+
+value.pe64.nt_header.optional_header.dd.reserved.rva dd 0x00000000
+value.pe64.nt_header.optional_header.dd.reserved.size dd 0x00000000
+
 value.pe64.section_header.name rb 0x8
 value.pe64.section_header.virtual_size dd 0x0
 value.pe64.section_header.virtual_rva dd 0x0
@@ -57,6 +109,7 @@ value.pe64.section_header.virtual_characteristics dd 0x0
 
 
 section '.text' code readable executable
+
 proc parse_pe64 input_file_buffer_address
     pushall
 
@@ -326,19 +379,17 @@ proc parse_pe64 input_file_buffer_address
     invoke printf, "probing optional_header completed ... "
     call print_newline
 ; -----------------------------------------------------------------
-; probing data directories - start
-    invoke printf, "probing data directories ... "
+; probing data directories 
 
-    xor ecx, ecx
-    xor edi, edi
-    xor esi, esi
-
+    xor rsi, rsi
     mov esi, dword [input_file_buffer_address]
-    mov edi, [offset.pe64.nt_header.optional_header]
-    add edi, 0x60       ; start of data directories
-    mov [loop_index], 0x0
+    add edi, 0x4        ; ... + address_of_entry_point + base_of_code
+    add esi, edi
+    lea edi, [value.pe64.nt_header.optional_header.dd.export.rva]
+    mov ecx, 0x80   ; 128 bytes - 16 data directories
+    rep movsb
 
-    call print_newline
+
     invoke printf, "probing pe64 header completed ... "
     call print_newline
     invoke printf, "+---------------------------------------------------------------------------------------+"
@@ -375,26 +426,10 @@ endp
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 proc print_parsed_pe64
     pushall
-    invoke printf, "+---------------------------------------------------------------------------------------+"
-    call print_newline
+    ;invoke printf, "+---------------------------------------------------------------------------------------+"
+    ;call print_newline
     invoke printf, "printing the parsed pe64 ... "
     call print_newline
 
@@ -566,44 +601,75 @@ proc print_parsed_pe64
 ; -----------------------------------------------------------------
 
 ; -----------------------------------------------------------------
-; probing and printingdata directories - start
+; probing and printing data directories - start
     invoke printf, "printing data directories... "
     call print_newline
 
-    xor ecx, ecx
-    xor edi, edi
-    xor esi, esi
-
-    mov esi, dword [input_file_buffer_address]
-    mov edi, [offset.pe64.nt_header.optional_header]
-    add edi, 0x60       ; start of data directories
-    mov [loop_index], 0x0
-pe64_probe_data_directories_loop_start:
-    mov ecx, [loop_index]
-    cmp ecx, [value.pe64.nt_header.optional_header.number_of_rva_and_sizes]
-    jge pe64_probe_data_directories_loop_out
-
-    xor edx, edx
-    mov edx, dword [esi + edi]
-    invoke printf, "    -> 0x%08x (rva) - ", edx
-
-    add edi, 4
-    xor edx, edx
-    mov edx, dword [esi + edi]
-    invoke printf, "0x%08x (size). ", edx
-
-    xor rdx, rdx
-    mov dl, byte [loop_index]
-    imul edx, dword 24
-    add rdx, data_directory_names
-    invoke printf, "- %s ", edx
-
-    add edi, 4
-    inc [loop_index]
+    invoke printf, " export table                   - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.export.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.export.size]
+    call print_newline
+    invoke printf, " import table                   - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.import.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.import.size]
+    call print_newline
+    invoke printf, " resource tabel                 - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.resource.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.resource.size]
+    call print_newline
+    invoke printf, " exception table                - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.exception.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.exception.size]
+    call print_newline
+    invoke printf, " certificate table              - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.certificate.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.certificate.size]
+    call print_newline
+    invoke printf, " base relocation table          - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.baserelocation.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.baserelocation.size]
+    call print_newline
+    invoke printf, " debug table                    - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.debug.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.debug.size]
+    call print_newline
+    invoke printf, " architecture table             - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.architecture.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.architecture.size]
+    call print_newline
+    invoke printf, " global ptr table               - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.globalptr.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.globalptr.size]
+    call print_newline
+    invoke printf, " tls table                      - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.tls.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.tls.size]
+    call print_newline
+    invoke printf, " load config table              - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.loadconfig.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.loadconfig.size]
+    call print_newline
+    invoke printf, " bound import table             - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.boundimport.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.boundimport.size]
+    call print_newline
+    invoke printf, " iat table                      - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.iat.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.iat.size]
+    call print_newline
+    invoke printf, " delay import descriptor table  - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.delayimport.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.delayimport.size]
+    call print_newline
+    invoke printf, " clr runtime header table       - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.clrruntime.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.clrruntime.size]
+    call print_newline
+    invoke printf, " reserved table                 - "
+    invoke printf, "0x%08x (rva) - ", [value.pe64.nt_header.optional_header.dd.reserved.rva]
+    invoke printf, "0x%08x (size). ", [value.pe64.nt_header.optional_header.dd.reserved.size]
     call print_newline
 
-    jmp pe64_probe_data_directories_loop_start
-pe64_probe_data_directories_loop_out:
     invoke printf, "+---------------------------------------------------------------------------------------+"
     call print_newline
 
@@ -618,6 +684,11 @@ pe64_probe_data_directories_loop_out:
     mov esi, dword [input_file_buffer_address]
     mov edi, [offset.pe64.nt_header.optional_header]
     add di, word [value.pe64.nt_header.file_header.size_of_optional_header]
+    mov [offset.pe64.section_header.start], edi
+
+    invoke printf, "section header starts at 0x%hhx ... ", \ 
+                    [offset.pe64.section_header.start]
+    call print_newline
 
     mov [loop_index], 0x0
 pe64_probe_section_headers_loop_start:
@@ -694,6 +765,69 @@ pe64_probe_section_headers_loop_start:
     mov edx, dword [esi + edi]
     mov dword [value.pe64.section_header.virtual_characteristics], edx
     invoke printf, "    -> characteristics: 0x%x", [value.pe64.section_header.virtual_characteristics]
+
+; section header characteristics print - start
+    xor r15, r15
+    mov r15d, dword [value.pe64.section_header.virtual_characteristics]
+
+    invoke printf, " => [ "
+pe64.characteristics_check_0:
+    bt r15d, 29
+    jnc pe64.characteristics_check_1
+    invoke printf, " .executable. "
+
+pe64.characteristics_check_1:
+    bt r15d, 30
+    jnc pe64.characteristics_check_2
+    invoke printf, " .read. "
+
+pe64.characteristics_check_2:
+    bt r15d, 5
+    jnc pe64.characteristics_check_3
+    invoke printf, " .code. "
+
+pe64.characteristics_check_3:
+    bt r15d, 31
+    jnc pe64.characteristics_check_4
+    invoke printf, " .write. "
+
+pe64.characteristics_check_4:
+    bt r15d, 6
+    jnc pe64.characteristics_comeout
+    invoke printf, " .initialized data. "
+
+pe64.characteristics_comeout:
+
+; section header characteristics print - end
+
+; now find out iat region
+; iat is stored in 
+;value.nt_header.optional_header.dd.import.rva dd 0x00000000
+;value.nt_header.optional_header.dd.import.size dd 0x00000000
+; aaa
+
+    xor r15, r15
+    mov r15d, edi
+    sub r15d, 24
+    
+    xor rdx, rdx
+    xor r8, r8
+
+    mov ecx, dword [esi + r15d]  ; min
+    sub r15d, 4      ; virtual size
+    mov edx, ecx    ; min
+    add edx, dword [esi + r15d]      ; rva size - max   
+    ;aaa
+    mov r8d, dword [value.pe64.nt_header.optional_header.dd.import.rva]    ; addr
+
+    ; is_addr_within_range(min, max, addr)
+    fastcall find_is_addr_within_range
+    test eax, eax
+    jz pe64.section_rva_iat_probe_comeout
+    invoke printf, " .import section. "
+
+pe64.section_rva_iat_probe_comeout:
+    invoke printf, " ] "
     call print_newline
 
     add edi, 4
@@ -702,6 +836,11 @@ pe64_probe_section_headers_loop_start:
 
     jmp pe64_probe_section_headers_loop_start
 pe64_probe_section_headers_loop_out:
+
+    mov [offset.pe64.section_header.end], edi
+    invoke printf, "section header ends at 0x%hhx ... ", \ 
+                    [offset.pe64.section_header.end]
+    call print_newline
 
     invoke printf, "+---------------------------------------------------------------------------------------+"
     call print_newline

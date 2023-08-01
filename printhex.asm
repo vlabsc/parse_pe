@@ -1,182 +1,174 @@
 ; printhex.asm
-; version 7 - optimization
-; version 7 - pe64 implementation
+; file in hex version 11
+
+section '.data' data readable writeable
+hexmaptable db '0123456789ABCDEF'
+hexstring rb 48
+db 0    ; end of string 
+filterstring rb 16
+db 0 
+;print_newlinestr db 13, 10, 0
 
 section '.text' code readable executable
 
 proc print_hex hexprint_buffer_total_lines_to_display, \
                     hexprint_buffer_total_columns_to_display, \
                     hexprint_buffer_last_line_columns_to_display, \
-                    inputfile_read_buffer_address, \
-                    row_address_print_start_address
-
-    local row_address_print rb 0x4
+                    inputfile_read_buffer_address
     
-    ; r14d - row_index
-    ; r15d - col_index
-    ; esi - buffer_index_save
-    ; edi - buffer_index
-
+    local row_address_print rb 0x4
 
     mov dword [hexprint_buffer_total_lines_to_display], ecx
     mov dword [hexprint_buffer_total_columns_to_display], edx
     mov [hexprint_buffer_last_line_columns_to_display], r8
     mov [inputfile_read_buffer_address], r9
-    ;debugbreak
 
     xor eax, eax
     mov eax, dword [esp + 64]
     mov dword [row_address_print], eax
 
     pushall
-    ;mov dword [row_address_print], dword 0x00000000
 
-    xor rsi, rsi
-    xor rdi, rdi
     xor r14, r14
-    xor r15, r15
+    mov esi, dword [inputfile_read_buffer_address]
 
-    .iteration_loop_each_rows_start:
-        ; save the position - start
-        ; first time the hex values are printed
-        ; then again for the same bytes we need to print ASCII
-        ; so the buffer_index is savted into 'buffer_index_save' 
-        ; to start specific to that row
-        ; esi holds the original offset, edi is incremented for every cell display
-        xor rcx, rcx
-        mov esi, edi
-        ; save the position - end
-
-        ; check if row_index is less then hexprint_buffer_total_lines_to_display - start
-        ; the total rows should be less than hexprint_buffer_total_lines_to_display
-        ; hexprint_buffer_total_lines_to_display = file size / bytes to show per line
-        ; the reminder would go into hexprint_buffer_last_line_columns_to_display
-        xor ecx, ecx        
+    iteration_loop_each_rows_start:
         cmp dword [hexprint_buffer_total_lines_to_display], r14d
-        je .iteration_loop_each_rows_end
-        ; check if row_index is less then hexprint_buffer_total_lines_to_display - end
+        je iteration_loop_each_rows_end
 
-        xor rdx, rdx
-        xor rcx, rcx
-        xor r15, r15
+        mov edi, esi            ; mov esi, dword [inputfile_read_buffer_address]
+        
+        lea ebx, [hexmaptable]
+        lea r15d, [hexstring]
+        mov ecx, dword [hexprint_buffer_total_columns_to_display]         ; 16
+        looop1:
+            xor eax, eax
 
-        invoke printf, "0x%08x [ ", dword [row_address_print]        
-        .iteration_loop_cols_start:
-            cmp r15b, byte [hexprint_buffer_total_columns_to_display]
-            je .iteration_loop_cols_end
+            mov al, byte [edi]
+            and al, 0xf0
+            shr al, 4
+            xlatb
+            mov [r15d], al
+            inc r15d
 
-            xor edx, edx
-            mov eax, edi
-            add eax, dword [inputfile_read_buffer_address]
-            mov dl, byte [eax]
-            invoke printf, "%02x", dl
+            mov al, byte [edi]
+            and al, 0xf
+            xlatb
+            mov [r15d], al
+            inc r15d
 
-            invoke printf, " "  ; space between every hex
+            mov [r15d], byte 0x20
+
             inc edi
-            inc r15b
-            jmp .iteration_loop_cols_start
-        .iteration_loop_cols_end:
-        invoke printf, "] "
-
+            inc r15d    
+        loop looop1
         ; print the ASCII of the row - start 
 
-        ; restore the position
-        ; first time the hex values are printed
-        ; then again for the same bytes we need to print ASCII
-        ; so the buffer_index is restored from 'buffer_index_save' 
-        ; to start specific to that row
-        ; esi holds the original offset, edi is incremented for every cell display
-        xor ecx, ecx
-        mov edi, esi        
-        xor r15d, r15d
-
-        invoke printf, "[ "
-        .iteration_loop_cols_ascii_start:
-            cmp r15b, byte [hexprint_buffer_total_columns_to_display]
-            je .iteration_loop_cols_ascii_end
-            
-            mov ecx, edi
-            add ecx, dword [inputfile_read_buffer_address]
-            mov ecx, [ecx]
-            fastcall print_ascii_character, ecx
-
-            inc edi
-            inc r15b
-            jmp .iteration_loop_cols_ascii_start
-        .iteration_loop_cols_ascii_end:
-        invoke printf, " ] "
+        lea r15d, [filterstring]
+        mov ecx, dword [hexprint_buffer_total_columns_to_display]     ; 16
+        looop2:            
+            cmp byte [esi], 0x20
+            jge .check_ascii_readable_1
+            jmp .ascii_not_normal_print
+            .check_ascii_readable_1:
+                cmp byte [esi], 0x7e
+                jle .ascii_normal_print
+                jmp .ascii_not_normal_print
+            .ascii_normal_print:
+                mov bl, byte [esi]
+                mov [r15d], byte bl
+                jmp .check_ascii_readable_1_out
+            .ascii_not_normal_print:
+                mov [r15d], byte 0x2e                ; 0x2e -> .
+            .check_ascii_readable_1_out:
+            inc r15d            ; [filterstring]
+            inc esi             ; [inputfile_read_buffer_address]
+        loop looop2
+        
         ; print the ASCII of the row - end
 
-        ;l at this point one row is over. hence calculation are made
+        invoke printf, "%08x [ %s ] [ %s ]%s", dword [row_address_print], addr hexstring, addr filterstring, print_newlinestr
+        ;at this point one row is over. hence calculation are made
 
-        inc r14d            ; one row is over
-
+        inc r14d            ; one row is over - hexprint_buffer_total_lines_to_display
         mov dword ecx, dword [hexprint_buffer_total_columns_to_display]
         add dword [row_address_print], dword ecx    
         
-        call print_newline
-        jmp .iteration_loop_each_rows_start
-    .iteration_loop_each_rows_end:
+        jmp iteration_loop_each_rows_start
+    iteration_loop_each_rows_end:
 
+
+; -----------------------------------------------------------------------------------
     ; now let's iterate the last row
 
     cmp byte [hexprint_buffer_last_line_columns_to_display], 0x0
-    je .print_hex_return
+    je print_hex_return
 
-    ; save the position - start
-    ; first time the hex values are printed
-    ; then again for the same bytes we need to print ASCII
-    ; so the buffer_index is savted into 'buffer_index_save' 
-    ; to start specific to that row
-    ; esi holds the original offset, edi is incremented for every cell display
+    xor ecx, ecx
+    mov ecx, 49
+    lea r15d, [hexstring]
+
+    looop3:
+        mov [r15d], byte 0x0
+        inc r15d
+    loop looop3
+
     xor rcx, rcx
-    mov esi, edi
-    ; save the position - end
+    mov edi, esi
 
     xor rcx, rcx
     xor rdx, rdx
     xor r15, r15
 
-    invoke printf, "0x%08x [ ", dword [row_address_print]
-    ;invoke printf, "0x%08x ", dword [row_address_print]
-    ;invoke printf, "[ "
-
+    invoke printf, "%08x [ ", dword [row_address_print]    
     .iteration_loop_last_row_start:
-        cmp r15b, byte [hexprint_buffer_total_columns_to_display]
-        je .iteration_loop_last_row_end
+        xor r15d, r15d
+        lea ebx, [hexmaptable]
+        lea r15d, [hexstring]
+        xor ecx, ecx
+        mov cl, byte [hexprint_buffer_last_line_columns_to_display]
 
-        cmp r15b, byte [hexprint_buffer_last_line_columns_to_display]
-        ; no jle because the col_index starts at 0
-        jl .iteration_loop_last_row_col_1
-        invoke printf, "  "
-        jmp .iteration_loop_last_row_col_2
+        looop4:
+            mov al, byte [edi]
+            and al, 0xf0
+            shr al, 4
 
-        .iteration_loop_last_row_col_1:
-            xor edx, edx
-            mov eax, edi
+            xlatb
+            mov [r15d], al
 
-            add eax, dword [inputfile_read_buffer_address]
-            mov dl, byte [eax]
-            invoke printf, "%02x", dl
+            inc r15d    
 
-        .iteration_loop_last_row_col_2:
+            mov al, byte [edi]
+            and al, 0xf
 
-            inc r15b    ; one column is over
+            xlatb
+            mov [r15d], al
+
+            inc r15d    
+
+            mov [r15d], byte 0x20
+
             inc edi
+            inc r15d    
+        loop looop4
+        invoke printf, "%s ", addr hexstring
 
-            invoke printf, " "
-            jmp .iteration_loop_last_row_start
-        .iteration_loop_last_row_end:
+        xor ebx, ebx
+        mov bl, byte [hexprint_buffer_total_columns_to_display]
+        sub bl, byte [hexprint_buffer_last_line_columns_to_display]
+        looop5:
+            test ebx, ebx
+            je looop5_comeout
+            invoke printf, "   "
+            dec ebx
+            jmp looop5
+        looop5_comeout:
+
         invoke printf, "] "
+
 
         ; print the ASCII of the last row - start 
 
-        ; restore the position
-        ; first time the hex values are printed
-        ; then again for the same bytes we need to print ASCII
-        ; so the buffer_index is restored from 'buffer_index_save' 
-        ; to start specific to that row
-        ; esi holds the original offset, edi is incremented for every cell display
         mov edi, esi
         xor r15, r15
 
@@ -193,8 +185,6 @@ proc print_hex hexprint_buffer_total_lines_to_display, \
 
             .iteration_loop_last_last_row_col_1:
                 mov ecx, edi
-
-                add ecx, dword [inputfile_read_buffer_address]
                 mov ecx, [ecx]
                 fastcall print_ascii_character, ecx
 
@@ -209,7 +199,7 @@ proc print_hex hexprint_buffer_total_lines_to_display, \
         ; print the ASCII of the row - end
 
 
-.print_hex_return:
+print_hex_return:
 
     popall
     ret

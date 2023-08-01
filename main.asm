@@ -1,15 +1,14 @@
-; main7.asm
-; version 7 - optimization
-; version 7 - pe64 implementation
+; main.asm
+; version 8 - populate more fields
 ; this is the main and entry code
 
 
 format PE64 console
 entry main
 
-include 'WIN64AX.INC'
-include 'libs.inc'
-include 'macros.inc'
+include 'C:\fasm\INCLUDE\WIN64AX.INC'
+include 'V:\OneHalf\Programming\asm\FASM\libs\libs.inc'
+include 'V:\OneHalf\Programming\asm\FASM\libs\macros.inc'
 
 
 section '.data' data readable writeable
@@ -77,7 +76,7 @@ correct_arguments_passed:
     xor r8, r8
 
     call clrscr
-    invoke printf, "parse_pe (v7)- parse the pe header and print the fields."
+    invoke printf, "parse_pe (v8)- parse the pe header and print the fields."
     call print_newline
 
 
@@ -104,7 +103,7 @@ main_return:
 
 proc print_help
     pushall
-    fastcall printn, "parse_pe v7. parse pe file and print pe header."
+    fastcall printn, "parse_pe v8. parse pe file and print pe header."
     fastcall printn, "command execution"
     fastcall printn, "parse_pe.exe <input_pefile_name>"
     fastcall printn, "example"
