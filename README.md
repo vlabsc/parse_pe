@@ -40,4 +40,12 @@ parses the pe64 header
 ![image](https://github.com/vlabsc/parse_pe/assets/5446466/ebfd11d6-b7e4-4928-bacc-9eb904740ff8)
 prints the hex of pe64 sections
 
+![image](https://github.com/vlabsc/parse_pe/assets/5446466/01f06b7b-5f78-48ad-bb1d-25c3b2975ff2)
+prints the import table
+
+![image](https://github.com/vlabsc/parse_pe/assets/5446466/6f25f8eb-1b6a-4299-afa6-4fba1bb1256a)
+printing the import names table
+
+
+
 
